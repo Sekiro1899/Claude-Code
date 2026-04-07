@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Fitness App",
+    "slug": "fitness-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "fitness-app",
+    "platforms": ["ios", "android"],
+    "plugins": ["expo-router", "expo-secure-store"]
+  }
+}
