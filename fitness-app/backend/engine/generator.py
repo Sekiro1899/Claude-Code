@@ -42,7 +42,7 @@ async def generate_workout(request: WorkoutRequest) -> WorkoutResponse:
     protocol = request.protocol or program.get("default_protocol", "full_body")
 
     # Résoudre le focus
-    focus = request.focus or _resolve_focus(protocol, request.week_number)
+    focus = request.focus or _resolve_focus(protocol, request.day_number)
 
     # Résoudre le niveau max selon le persona
     exp_level = persona.get("experience_level", "intermediate")
@@ -86,7 +86,32 @@ async def generate_workout(request: WorkoutRequest) -> WorkoutResponse:
         level_max=level_max,
     )
 
+    # ── Persister dans la table sessions ──
+    session_row = {
+        "user_id": request.user_id,
+        "user_program_id": request.user_program_id,
+        "phase_id": phase.get("id"),
+        "week_number": request.week_number,
+        "day_number": request.day_number,
+        "session_label": session_label,
+        "protocol": protocol,
+        "focus": focus,
+        "status": "planned",
+        "energy_level": request.energy_level,
+        "warmup_block": [b.model_dump(exclude_none=True) for b in warmup],
+        "main_block": [b.model_dump(exclude_none=True) for b in main],
+        "core_block": [b.model_dump(exclude_none=True) for b in core],
+        "finisher_block": [b.model_dump(exclude_none=True) for b in finisher],
+    }
+
+    insert_result = supabase.table("sessions").insert(session_row).execute()
+    if not insert_result.data:
+        raise ValueError("Erreur lors de la persistence de la séance")
+
+    session_id = insert_result.data[0]["id"]
+
     return WorkoutResponse(
+        session_id=session_id,
         program_id=request.program_id,
         phase_id=phase.get("id"),
         protocol=protocol,
@@ -159,11 +184,10 @@ def _program_as_phase(program: dict) -> dict:
     }
 
 
-def _resolve_focus(protocol: str, week_number: int) -> str:
-    """Détermine le focus du jour selon le protocole et le numéro de semaine."""
+def _resolve_focus(protocol: str, day_number: int) -> str:
+    """Détermine le focus du jour selon le protocole et le numéro du jour."""
     schedule = PROTOCOL_SCHEDULE.get(protocol, ["full_body"])
-    # Rotation simple basée sur le numéro de semaine
-    index = (week_number - 1) % len(schedule)
+    index = (day_number - 1) % len(schedule)
     return schedule[index]
 
 
